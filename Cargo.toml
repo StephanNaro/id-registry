@@ -1,0 +1,11 @@
+[workspace]
+members = ["server"]
+resolver = "3"
+
+# Moved from server/Cargo.toml for optional use later
+#[profile.release]
+#opt-level = 3
+#lto = true
+#codegen-units = 1
+#panic = "abort"
+#strip = true
