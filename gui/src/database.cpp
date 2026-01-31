@@ -56,6 +56,20 @@ bool initializeDatabase(const QString &dbPath, QString &errorMessage) {
     query.exec("INSERT OR IGNORE INTO settings (key, value) VALUES ('id_length', '12')");
     query.exec("INSERT OR IGNORE INTO settings (key, value) VALUES ('charset', "
                "'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')");
+    query.exec("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_secret', 'your-secret-here')");
+
+/*
+    query.prepare(
+        "INSERT OR IGNORE INTO settings (key, value) "
+        "VALUES (?, ?)"
+    );
+    query.addBindValue("admin_secret");     // position 1
+    query.addBindValue(secret);             // position 2
+    if (!query.exec()) {
+        errorMessage = "Insert failed: " + query.lastError().text();
+        return false;
+    }
+*/
 
     return true;
 }

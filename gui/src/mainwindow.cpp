@@ -13,6 +13,28 @@
 #include <QMessageBox>
 #include <QSpinBox>
 #include <QIntValidator>
+#include <QString>
+#include <random>
+
+QString generateRandomPassword(int length = 12) {
+    const QString chars =
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789"
+        "!@#$%^&*()_+-=[]{};:,.<>?/~";
+
+    QString password;
+    password.reserve(length);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, chars.length() - 1);
+
+    for (int i = 0; i < length; ++i) {
+        password += chars[dis(gen)];
+    }
+    return password;
+}
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     QWidget *centralWidget = new QWidget(this);
@@ -49,6 +71,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     charsetLayout->addWidget(lblCharset);
     charsetLayout->addWidget(lineEditCharset);
     mainLayout->addLayout(charsetLayout);
+
+    // ── Admin Secret ───────────────────────────────────────
+    QHBoxLayout *secretLayout = new QHBoxLayout();
+    QLabel *lblSecret = new QLabel("Admin Secret (for suspend/resume):", this);
+    lineEditAdminSecret = new QLineEdit(this);
+    lineEditAdminSecret->setEchoMode(QLineEdit::Password);
+    lineEditAdminSecret->setText(generateRandomPassword());	//"");  // empty by default
+    secretLayout->addWidget(lblSecret);
+    secretLayout->addWidget(lineEditAdminSecret);
+    mainLayout->addLayout(secretLayout);
 
     // ── Save Button & Status ────────────────────────────────
     pushButtonSave = new QPushButton("Save & Initialize", this);
@@ -109,6 +141,10 @@ bool MainWindow::loadSettingsFromDb(const QString &dbPath) {
                 if (!value.isEmpty()) {
                     lineEditCharset->setText(value);
                 }
+            } else if (key == "admin_secret") {
+                if (!value.isEmpty()) {
+                    lineEditAdminSecret->setText(value);
+                }
             }
         }
     }
@@ -153,6 +189,10 @@ void MainWindow::onSaveClicked()
 
             q.addBindValue("charset");
             q.addBindValue(lineEditCharset->text().trimmed());
+            q.exec();
+
+            q.addBindValue("admin_secret");
+            q.addBindValue(lineEditAdminSecret->text().trimmed());
             q.exec();
 
             // Optional: check for errors

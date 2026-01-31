@@ -60,9 +60,6 @@ Setup GUI (Qt) ─────────┘
 
 ```bash
 git clone https://github.com/StephanNaro/id-registry.git
-```
-In server/src/main.rs: change ```your-secret``` to something sutiable.
-```bash
 cd id-registry/server
 cargo build --release
 ```
@@ -124,9 +121,8 @@ Generate ID:
 curl -X POST http://127.0.0.1:8000/generate -H "Content-Type: application/json" -d "{\"owner\":\"person_app\",\"table\":\"contacts\"}"
 ```
 
-Confirm:
+Confirm (replacing ```existing_id``` with an id created earlier):
 
-Replace ```existing_id``` with an id created earlier
 ```bash
 curl -X POST http://127.0.0.1:8000/confirm -H "Content-Type: application/json" -d "{\"id\":\"existing_id\"}"
 ```
@@ -143,13 +139,13 @@ Health check:
 curl http://127.0.0.1:8000/health
 ```
 
-Suspend (for backup) (replacing ```your-secret``` to match the source file):
+Suspend (for backup) (replacing ```your-secret``` to match the config setting):
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/suspend?secret=your-secret"
 ```
 
-Resume (replacing ```your-secret``` to match the source file):
+Resume (replacing ```your-secret``` to match the config setting):
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/resume?secret=your-secret"
@@ -179,6 +175,7 @@ Default settings inserted on first run:
 ```sql
 INSERT OR IGNORE INTO settings (key, value) VALUES ('id_length', '12');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('charset', 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_secret', 'your-secret-here');
 ```
 
 ## PHP Client Example
@@ -207,10 +204,9 @@ function createRemoteId($owner, $table = null) {
 
 ## Possible future improvements
 
-1. The most pressing need is for storing ```your-secret``` in the database in stead of hard-coding them in the source code.
-2. The configuration app should clearly be named ```config```, not ```gui```.
+The configuration app should clearly be named ```config```, not ```gui```.
 
-Please see [Suggestions.md](Suggestions.md) and [SuggestShareResources.md](SuggestShareResources.md) for further ideas.
+Please see [Suggestions.md](Suggestions.md) for further ideas.
 
 ## License
 

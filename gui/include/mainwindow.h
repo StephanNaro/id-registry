@@ -29,6 +29,7 @@ private:
     QPushButton *pushButtonBrowse;
     QPushButton *pushButtonSave;
     QLabel      *labelStatus;
+    QLineEdit   *lineEditAdminSecret;
 };
 
 #endif // MAINWINDOW_H

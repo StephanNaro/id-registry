@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use anyhow::Result;
-use rocket::{get, post, put, delete, routes, serde::json::Json, State};
-use rocket::http::Status;
+use rocket::{get, post, put, delete, routes, serde::json::Json, State, Request, catch, catchers};
+use rocket::http::{ContentType, Status};
+use rocket::response::{self, Responder};
 use rusqlite::OptionalExtension;
+use serde::Serialize;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
 use id_registry_server::{create_db_pool, DbPool, generate_id, get_db_path, load_settings, Settings};
@@ -16,6 +18,19 @@ struct AppState {
     settings: Arc<Settings>,
     pool: DbPool,
     suspended: Arc<AtomicBool>,
+}
+
+#[derive(Serialize)]
+struct ApiError {
+    error: String,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<String>,
+}
+
+struct JsonError {
+    status: Status,
+    error: ApiError,
 }
 
 #[derive(serde::Serialize)]
@@ -61,6 +76,92 @@ struct ConfirmResponse {
 // Functions
 //
 
+impl<'r> Responder<'r, 'r> for JsonError {
+    fn respond_to(self, _: &'r Request<'_>) -> response::Result<'r> {
+        let body = serde_json::to_string(&self.error).unwrap_or_else(|_| {
+            r#"{"error":"internal_error","message":"Failed to serialize error"}"#.to_string()
+        });
+
+        response::Response::build()
+            .status(self.status)
+            .header(ContentType::JSON)
+            .sized_body(body.len(), std::io::Cursor::new(body))
+            .ok()
+    }
+}
+
+#[catch(400)]
+fn bad_request(_req: &Request<'_>) -> JsonError {
+    JsonError {
+        status: Status::BadRequest,
+        error: ApiError {
+            error: "bad_request".to_string(),
+            message: "Invalid request parameters or body".to_string(),
+            details: None,
+        },
+    }
+}
+
+#[catch(401)]
+fn unauthorized(_req: &Request<'_>) -> JsonError {
+    JsonError {
+        status: Status::Unauthorized,
+        error: ApiError {
+            error: "unauthorized".to_string(),
+            message: "Authentication required".to_string(),
+            details: None,
+        },
+    }
+}
+
+#[catch(404)]
+fn not_found(_req: &Request<'_>) -> JsonError {
+    JsonError {
+        status: Status::NotFound,
+        error: ApiError {
+            error: "not_found".to_string(),
+            message: "Resource not found".to_string(),
+            details: None,
+        },
+    }
+}
+
+#[catch(501)]
+fn not_implemented(_req: &Request<'_>) -> JsonError {
+    JsonError {
+        status: Status::NotImplemented,
+        error: ApiError {
+            error: "not_implemented".to_string(),
+            message: "This feature is not yet available".to_string(),
+            details: None,
+        },
+    }
+}
+
+#[catch(503)]
+fn service_unavailable(_req: &Request<'_>) -> JsonError {
+    JsonError {
+        status: Status::ServiceUnavailable,
+        error: ApiError {
+            error: "service_unavailable".to_string(),
+            message: "Server is temporarily suspended for maintenance".to_string(),
+            details: None,
+        },
+    }
+}
+
+#[catch(default)]
+fn default_error(status: Status, _req: &Request<'_>) -> JsonError {
+    JsonError {
+        status,
+        error: ApiError {
+            error: "internal_error".to_string(),
+            message: format!("Unexpected error ({})", status.code),
+            details: None,
+        },
+    }
+}
+
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
     println!("Starting ID Registry Server...");
@@ -86,6 +187,14 @@ async fn main() -> Result<(), rocket::Error> {
             suspended,
         })
         .mount("/", routes![health, preview, generate, confirm, update_id, delete_id, get_id, suspend, resume])
+        .register("/", catchers![
+            bad_request,
+            unauthorized,
+            not_found,
+            not_implemented,
+            service_unavailable,
+            default_error
+        ])
         .launch()
         .await?;
 
@@ -98,7 +207,7 @@ fn suspend(
     secret: Option<String>,
     state: &State<AppState>,
 ) -> Result<String, Status> {
-    if secret.as_deref() != Some("your-secret") {
+    if secret.as_deref() != Some(&state.settings.admin_secret) {
         return Err(Status::Unauthorized);
     }
 
@@ -112,7 +221,7 @@ fn resume(
     secret: Option<String>,
     state: &State<AppState>,
 ) -> Result<String, Status> {
-    if secret.as_deref() != Some("your-secret") {
+    if secret.as_deref() != Some(&state.settings.admin_secret) {
         return Err(Status::Unauthorized);
     }
 
