@@ -11,6 +11,7 @@ use winreg::RegKey;
 pub struct Settings {
     pub id_length: u32,
     pub charset: String,
+    pub admin_secret: String,
 }
 
 pub type DbPool = Pool<SqliteConnectionManager>;
@@ -47,7 +48,15 @@ pub fn load_settings(conn: &r2d2::PooledConnection<SqliteConnectionManager>) -> 
         .query_row(["charset"], |row| row.get(0))
         .context("Missing 'charset' in settings table")?;
 
-    Ok(Settings { id_length, charset })
+    let admin_secret: String = stmt
+        .query_row(["admin_secret"], |row| row.get(0))
+        .context("Missing 'admin_secret' in settings table")?;
+
+    Ok(Settings {
+        id_length,
+        charset,
+        admin_secret,
+    })
 }
 
 pub fn create_db_pool() -> Result<DbPool> {

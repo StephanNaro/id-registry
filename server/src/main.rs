@@ -207,7 +207,7 @@ fn suspend(
     secret: Option<String>,
     state: &State<AppState>,
 ) -> Result<String, Status> {
-    if secret.as_deref() != Some("your-secret") {
+    if secret.as_deref() != Some(&state.settings.admin_secret) {
         return Err(Status::Unauthorized);
     }
 
@@ -221,7 +221,7 @@ fn resume(
     secret: Option<String>,
     state: &State<AppState>,
 ) -> Result<String, Status> {
-    if secret.as_deref() != Some("your-secret") {
+    if secret.as_deref() != Some(&state.settings.admin_secret) {
         return Err(Status::Unauthorized);
     }
 
