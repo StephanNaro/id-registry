@@ -1,2 +1,0 @@
-# Exclude C++ files used to create gui if they overwhelm linguist into thinking this is mainly a C++ project:
-#gui/** linguist-vendored

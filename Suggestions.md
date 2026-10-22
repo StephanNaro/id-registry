@@ -1,6 +1,6 @@
 ## Deferred / suggested ideas so far
 
-Here’s the list of things we’ve mentioned but not yet implemented (mostly from earlier messages):
+Here’s a list of things discussed with AI but not yet implemented:
 
 1. **Better validation messages**
    - Return structured errors like `{"error": "invalid_owner", "details": "must be alphanumeric or underscore"}`
@@ -32,9 +32,10 @@ Here’s the list of things we’ve mentioned but not yet implemented (mostly fr
    - Add `X-Powered-By: id-registry v0.1` header (fun for demos)
    - Log startup banner with version/date (console + log file)
 
-### Additional suggestions, some by me, some forgotten by Grok, etc.
+### Additional suggestions
 
-- Rename the gui to config.
-- Move DBPath from the Windows Registry to a config file.
-- Create executable as Service in stead of CLI app, thus obviating need for NSSM.
+- [x] Rename the gui to config (folder renamed to `config`, executable to `idRegistryConfig`).
+- [x] Move DBPath off the Windows Registry. The path is now a `--db` argument stored in the service command.
+- [x] Create executable as Service instead of relying on NSSM. Logs go to `logs\idRegistry.log` beside the database.
 - Make sure to flush the database for /suspend.
+- Let the config tool choose the Windows service name, so a test service can run beside production. The name is currently fixed as `IdRegistryService`.

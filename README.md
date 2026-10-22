@@ -5,8 +5,8 @@ A lightweight, personal ID generation and ownership registry service.
 This project provides a centralized system for generating unique, opaque IDs that multiple applications can reference without duplicating data maintenance logic. Each ID is owned by one application ("owner"), which is responsible for the actual data behind it.
 
 The system consists of:
-- A Rust-based HTTP server (Rocket) that handles ID generation, lookup, confirmation, and basic CRUD stubs
-- A simple C++ Qt GUI for initial setup (database path, default ID length/charset)
+- A lightweight C++ HTTP REST server that handles ID generation, lookup, confirmation, and basic CRUD stubs
+- A simple C++ Qt configuration tool (`idRegistryConfig`) for initial setup (database path, default ID length/charset) and Windows service install
 
 All apps run on the same Windows machine. The database is SQLite.
 
@@ -14,7 +14,9 @@ All apps run on the same Windows machine. The database is SQLite.
 
 This project was inspired by seeing "REST API" listed as a required skill in a job advert. The aim is to showcase my ability to create a complete application — with the assistance of AI — even in areas that were still unfamiliar to me: Rust, C++/Qt 6, and REST API development. I also worked with entirely new technologies: Rocket (Rust web framework) and NSSM (Non-Sucking Service Manager for Windows services).
 
-It should be noted that **no thought has been given to security** in this project, as my knowledge of security matters is very limited.
+*Addendum:* The server was initially built with Rust and Rocket. Due to security concerns surrounding third-party crates and dependency supply chain risks, the server was rewritten in modern C++ using a lightweight embedded HTTP server (`cpp-httplib`), `nlohmann/json`, and SQLite3.
+
+It should be noted that **little thought has been given to security** in this project, as my knowledge of security matters is very limited.
 
 ## Features
 
@@ -23,7 +25,7 @@ It should be noted that **no thought has been given to security** in this projec
 - Soft-delete support (`deleted` flag)
 - Confirmation mechanism (`confirmed` flag)
 - Suspend/resume mode for clean backups
-- Runs as a Windows service (via NSSM)
+- Runs as a Windows service (`IdRegistryService`, LocalSystem, installed from the config tool)
 - Basic client integration example (PHP → HTTP calls)
 
 ## Architecture
@@ -31,16 +33,16 @@ It should be noted that **no thought has been given to security** in this projec
 ```
 Client App (PHP / C++ / etc.)
         ↓ HTTP (localhost:8000)
-Rust Server (Rocket) ───► SQLite DB (id_registry.db)
-        ↑ Registry (HKCU) for DB path
-Setup GUI (Qt) ─────────┘
+C++ Server ───────────────► SQLite DB (id_registry.db)
+        ↑ --db path stored in the service command
+Config Tool (Qt) ─────────┘
 ```
 
 - IDs are stored in `ids` table with owner, table_name, confirmed, deleted, created_at
 - Settings (length, charset) stored in `settings` table
-- Server reads DB path from Windows Registry (HKCU\Software\IdRegistry\Settings\DBPath)
+- The database path is passed with `--db`. The config tool stores that path in the Windows service command.
 
-**Important:** Users are **not** dependent on the GUI. The server will start as long as the registry key exists and points to a valid SQLite database file with the correct schema. You can create the database manually (via SQLiteStudio or command line) if preferred.
+**Important:** Users are **not** dependent on the GUI. The server starts when it is given `--db` pointing at a valid SQLite database file with the correct schema. You can create the database manually (via SQLiteStudio or command line) if preferred.
 
 ## Screenshots
 
@@ -49,69 +51,69 @@ Setup GUI (Qt) ─────────┘
 ## Requirements
 
 - Windows (tested on Win 10/11)
-- Rust 1.80+ (for server)
-- Qt 6.x + CMake (for GUI)
-- NSSM (to run server as service)
+- C++20 compiler (GCC / MinGW / Clang / MSVC)
+- CMake 3.16+ and Ninja
+- SQLite3
+- Qt 6.x (for config tool)
+- NLohmann JSON
+- Administrator rights, to install the server as a Windows service
 - SQLite browser (optional, for manual inspection)
+
+### Third‑party libraries (included)
+
+- **cpp-httplib** – single-header HTTP server library used by the server. Original source: https://github.com/yhirose/cpp-httplib (MIT License).
 
 ## Installation
 
-### 1. Clone & build server
+### 1. Build the project
+
+Clone the repository and build both the server and config tool using CMake:
 
 ```bash
 git clone https://github.com/StephanNaro/id-registry.git
-cd id-registry/server
-cargo build --release
+cd id-registry
+cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
-The executable will be at `target\release\id-registry-server.exe`.
+This compiles:
+- `build/server/idRegistryServer.exe` (the REST server)
+- `build/config/idRegistryConfig.exe` (the setup configuration tool)
 
-### 2. Build GUI (optional, but recommended for first-time setup)
+You can also build either component individually by running CMake inside `server/` or `config/`.
 
-```bash
-cd ../gui
-cmake -DBUILD_DEVELOPMENT_MODE=OFF -G "Ninja" ..\..
-cmake --build .
-```
+### 2. Set up as Windows service (recommended)
 
-Run `build\idRegistryGui.exe` (or whatever your output name is) to set DB path and defaults.
+Copy `idRegistryServer.exe` and `idRegistryConfig.exe` into the same Tools folder. The database can live in a different folder, as long as `SYSTEM` can read and write that folder and the files beside the database.
 
-### 3. Set up as Windows service (recommended)
+1. Run `idRegistryConfig`.
+2. Choose the database file and click **Save & Initialize**.
+3. Click **Install service** and approve the administrator prompt.
+4. Click **Start**.
 
-1. Download NSSM: https://nssm.cc/download
-2. Extract to e.g. `C:\Tools\nssm`
-3. Run as Administrator:
+The service is named `IdRegistryService`. It starts automatically as LocalSystem. The config tool sets the host and port (default `127.0.0.1:8000`) and stores them in the service command. Logs are written to `logs\idRegistry.log` in the database directory. Saving a changed database path, host, or port updates the service command and restarts a running service.
+
+The same actions can be run from an elevated command prompt:
 
 ```cmd
-C:\Tools\nssm\nssm.exe install IdRegistryService
+idRegistryServer --install --db "D:\Data\idRegistry\id_registry.db"
+idRegistryServer --start
+idRegistryServer --stop
+idRegistryServer --uninstall
 ```
 
-Fill in the GUI:
+`--uninstall` removes the service and leaves the database file in place.
 
-- Path → full path to `id-registry-server.exe`
-- Startup directory → folder containing the .exe
-- Log on → This account → `.\YourUsername` + password
-- Startup type → Automatic
-- Output / Error → paths to log files (optional)
-
-4. Start service:
+For a console run without installing the service:
 
 ```cmd
-sc start IdRegistryService
+idRegistryServer --db "D:\Data\idRegistry\id_registry.db"
 ```
 
-Check status:
+### 3. First-time setup
 
-```cmd
-sc query IdRegistryService
-```
-
-### 4. First-time setup
-
-- Run the GUI once → set database path (e.g. `C:\Users\YourName\AppData\Local\id_registry.db`) → Save & Initialize
-- Or manually create the DB file and tables (see schema below)
-
-The server reads the path from the registry on startup.
+- Run the config tool (`idRegistryConfig`) once → set database path (for example `D:\Data\idRegistry\id_registry.db`) → Save & Initialize
+- Or manually create the DB file and tables (see schema below), then pass that file to `--db`
 
 ## Usage (examples via curl)
 
@@ -160,13 +162,13 @@ CREATE TABLE ids (
     table_name    TEXT,
     user_id       TEXT,
     confirmed     INTEGER DEFAULT 0,
-   deleted       INTEGER DEFAULT 0,
-   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    deleted       INTEGER DEFAULT 0,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT
+    key          TEXT PRIMARY KEY,
+    value        TEXT
 );
 ```
 
@@ -204,14 +206,8 @@ function createRemoteId($owner, $table = null) {
 
 ## Possible future improvements
 
-The configuration app should clearly be named ```config```, not ```gui```.
-
 Please see [Suggestions.md](Suggestions.md) for further ideas.
 
 ## License
 
 This project is licensed under the GNU General Public License v3.0 (GPL-3.0). See [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Bug reports, feature ideas, and PRs welcome!
